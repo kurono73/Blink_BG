@@ -1,0 +1,10 @@
+schema_version = "1.0.0"
+id = "blink_bg"
+version = "1.0.0"
+name = "Blink BG"
+tagline = "Control camera BG image alpha/depth"
+maintainer = "Naoki Korematsum"
+type = "add-on"
+blender_version_min = "4.2.0"
+license = ["SPDX:GPL-3.0-or-later"]
+tags = ["Tracking", "Camera", "3D View"]
