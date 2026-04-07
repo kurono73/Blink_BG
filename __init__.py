@@ -47,8 +47,8 @@ def get_active_bg(cam_data):
 
 # --- Getters / Setters ---
 def get_base_alpha(self):
-    if "bg_blink_base_alpha" in self:
-        return self["bg_blink_base_alpha"]
+    if getattr(self, "bg_blink_active", False):
+        return self.get("bg_blink_base_alpha", 0.5)
     bg = get_active_bg(self)
     return bg.alpha if bg else 0.5
 
@@ -70,11 +70,10 @@ def update_active_state(self, context):
     if not bg:
         return
     if getattr(self, "bg_blink_active", False):
-        if "bg_blink_base_alpha" not in self:
-            self["bg_blink_base_alpha"] = bg.alpha
+        self["bg_blink_base_alpha"] = bg.alpha
         bg.alpha = self.bg_blink_target_alpha
     else:
-        bg.alpha = self.bg_blink_base_alpha
+        bg.alpha = self.get("bg_blink_base_alpha", 0.5)
 
 
 # --- Core Operators ---
@@ -170,11 +169,6 @@ class VIEW3D_OT_blink_bg_swap_opacity(bpy.types.Operator):
     def execute(self, context):
         cam_data = context.scene.camera.data
         
-        if "bg_blink_base_alpha" not in cam_data:
-            bg = get_active_bg(cam_data)
-            if bg:
-                cam_data["bg_blink_base_alpha"] = bg.alpha
-
         temp = cam_data.bg_blink_base_alpha
         cam_data.bg_blink_base_alpha = cam_data.bg_blink_target_alpha
         cam_data.bg_blink_target_alpha = temp
@@ -432,7 +426,7 @@ def register():
     bpy.types.Scene.bg_blink_delay = bpy.props.FloatProperty(
         name="Auto-OFF Delay",
         description="Delay in seconds before automatically turning off when clicked via UI",
-        default=0.3, 
+        default=0.2, 
         min=0.1,
         max=5.0
     )
