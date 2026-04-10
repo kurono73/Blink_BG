@@ -177,25 +177,6 @@ class VIEW3D_OT_blink_bg_swap_opacity(bpy.types.Operator):
         return {'FINISHED'}
 
 
-class VIEW3D_OT_blink_bg_depth_toggle(bpy.types.Operator):
-    """Toggle Background Image Depth (Front/Back)"""
-    bl_idname = "view3d.blink_bg_depth_toggle"
-    bl_label = "Toggle Depth"
-    bl_options = {'REGISTER'}
-
-    @classmethod
-    def poll(cls, context):
-        cam = context.scene.camera
-        return cam and cam.type == 'CAMERA' and cam.data.background_images
-
-    def execute(self, context):
-        bg = get_active_bg(context.scene.camera.data)
-        if bg:
-            bg.display_depth = 'BACK' if bg.display_depth == 'FRONT' else 'FRONT'
-            force_redraw()
-        return {'FINISHED'}
-
-
 class VIEW3D_OT_blink_bg_set_resolution(bpy.types.Operator):
     """Set the scene render resolution to match the active background image/clip size"""
     bl_idname = "view3d.blink_bg_set_resolution"
@@ -204,7 +185,21 @@ class VIEW3D_OT_blink_bg_set_resolution(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context):
-        return True 
+        cam_data = get_real_cam_data(context)
+        if not cam_data and getattr(context, "scene", None) and context.scene.camera:
+            cam_data = context.scene.camera.data
+            
+        if not cam_data:
+            return False
+
+        bg = get_active_bg(cam_data)
+        if not bg:
+            return False
+
+        has_img = getattr(bg, "source", "") == 'IMAGE' and getattr(bg, "image", None) is not None
+        has_mov = getattr(bg, "source", "") == 'MOVIE_CLIP' and getattr(bg, "clip", None) is not None
+        
+        return has_img or has_mov 
 
     def execute(self, context):
         cam_data = get_real_cam_data(context)
@@ -296,7 +291,12 @@ class VIEW3D_PT_blink_bg(bpy.types.Panel):
                 row_depth = layout.row(align=True)
                 depth_text = "Depth: Front" if bg.display_depth == 'FRONT' else "Depth: Back"
                 depth_icon = 'TRIA_UP_BAR' if bg.display_depth == 'FRONT' else 'TRIA_DOWN_BAR'
-                row_depth.operator(VIEW3D_OT_blink_bg_depth_toggle.bl_idname, text=depth_text, icon=depth_icon)
+                
+                idx = max(0, min(getattr(cam_data, "bg_blink_active_index", 0), len(cam_data.background_images) - 1))
+                op = row_depth.operator("wm.context_toggle_enum", text=depth_text, icon=depth_icon)
+                op.data_path = f"scene.camera.data.background_images[{idx}].display_depth"
+                op.value_1 = 'FRONT'
+                op.value_2 = 'BACK'
             
         else:
             layout.separator()
@@ -329,53 +329,51 @@ class VIEW3D_PT_blink_bg_options(bpy.types.Panel):
 
 
 def add_set_resolution_button_to_properties(self, context):
-    """Append Match Render Size button to the standard Camera properties panel."""
     self.layout.separator()
     self.layout.operator(VIEW3D_OT_blink_bg_set_resolution.bl_idname, text="Match Render Size", icon='OUTPUT')
 
 
 # --- Handlers ---
+_msgbus_owner = object()
 _last_active_camera_name = ""
 
-@bpy.app.handlers.persistent
-def sync_pinned_camera_handler(scene, depsgraph):
-    """Automatically sync pinned Properties editors to the active camera."""
-    if not getattr(scene, "bg_blink_auto_pin", False):
-        return
+def sync_pinned_camera_callback(*args):
+    try:
+        context = bpy.context
+        scene = getattr(context, "scene", None)
+        if not scene or not getattr(scene, "bg_blink_auto_pin", False):
+            return
 
-    cam = scene.camera
-    if not cam:
-        return
+        cam = scene.camera
+        if not cam:
+            return
 
-    global _last_active_camera_name
-    if cam.name == _last_active_camera_name:
-        return
+        global _last_active_camera_name
+        if cam.name == _last_active_camera_name:
+            return
 
-    _last_active_camera_name = cam.name
+        _last_active_camera_name = cam.name
 
-    for wm in bpy.data.window_managers:
-        for window in wm.windows:
-            for area in window.screen.areas:
-                if area.type == 'PROPERTIES':
-                    for space in area.spaces:
-                        if space.type == 'PROPERTIES' and space.use_pin_id:
-                            if not space.pin_id:
-                                continue
-                                
-                            if isinstance(space.pin_id, bpy.types.Object) and space.pin_id.type == 'CAMERA':
-                                space.pin_id = cam
-                                area.tag_redraw()
-                                
-                            elif isinstance(space.pin_id, bpy.types.Camera):
-                                space.pin_id = cam.data
-                                area.tag_redraw()
+        for wm in bpy.data.window_managers:
+            for window in wm.windows:
+                for area in window.screen.areas:
+                    if area.type == 'PROPERTIES':
+                        for space in area.spaces:
+                            if space.type == 'PROPERTIES' and getattr(space, "use_pin_id", False) and space.pin_id:
+                                if isinstance(space.pin_id, bpy.types.Object) and space.pin_id.type == 'CAMERA':
+                                    space.pin_id = cam
+                                    area.tag_redraw()
+                                elif isinstance(space.pin_id, bpy.types.Camera):
+                                    space.pin_id = cam.data
+                                    area.tag_redraw()
+    except Exception:
+        pass
 
 
 # --- Registration ---
 classes = (
     VIEW3D_OT_blink_bg,
     VIEW3D_OT_blink_bg_swap_opacity,
-    VIEW3D_OT_blink_bg_depth_toggle,
     VIEW3D_OT_blink_bg_set_resolution,
     VIEW3D_PT_blink_bg,
     VIEW3D_PT_blink_bg_options,
@@ -419,14 +417,14 @@ def register():
     
     bpy.types.Scene.bg_blink_lock = bpy.props.BoolProperty(
         name="Lock Blink State",
-        description="When locked, the shortcut key (Alt+V) acts as a toggle instead of hold",
+        description="When locked, the shortcut key acts as a toggle instead of hold",
         default=False
     )
     
     bpy.types.Scene.bg_blink_delay = bpy.props.FloatProperty(
         name="Auto-OFF Delay",
         description="Delay in seconds before automatically turning off when clicked via UI",
-        default=0.2, 
+        default=0.3, 
         min=0.1,
         max=5.0
     )
@@ -440,22 +438,32 @@ def register():
     for cls in classes:
         bpy.utils.register_class(cls)
     
-    if sync_pinned_camera_handler not in bpy.app.handlers.depsgraph_update_post:
-        bpy.app.handlers.depsgraph_update_post.append(sync_pinned_camera_handler)
-        
     bpy.types.DATA_PT_camera_background_image.append(add_set_resolution_button_to_properties)
     
     wm = bpy.context.window_manager
     kc = wm.keyconfigs.addon
     if kc:
         km = kc.keymaps.new(name='3D View', space_type='VIEW_3D', region_type='WINDOW')
-        kmi1 = km.keymap_items.new(VIEW3D_OT_blink_bg.bl_idname, 'V', 'PRESS', alt=True)
+        kmi1 = km.keymap_items.new(VIEW3D_OT_blink_bg.bl_idname, 'V', 'PRESS', ctrl=True, alt=True)
         addon_keymaps.append((km, kmi1))
+
+    bpy.msgbus.subscribe_rna(
+        key=(bpy.types.Scene, "camera"),
+        owner=_msgbus_owner,
+        args=(),
+        notify=sync_pinned_camera_callback,
+    )
+    
+    bpy.msgbus.subscribe_rna(
+        key=(bpy.types.LayerObjects, "active"),
+        owner=_msgbus_owner,
+        args=(),
+        notify=sync_pinned_camera_callback,
+    )
 
 
 def unregister():
-    if sync_pinned_camera_handler in bpy.app.handlers.depsgraph_update_post:
-        bpy.app.handlers.depsgraph_update_post.remove(sync_pinned_camera_handler)
+    bpy.msgbus.clear_by_owner(_msgbus_owner)
         
     bpy.types.DATA_PT_camera_background_image.remove(add_set_resolution_button_to_properties)
 
