@@ -36,4 +36,4 @@ Control the background switching behavior to match your workflow. The default sh
 If your camera has multiple background images set up (e.g., front view, side view), a **`Target BG`** index slider will automatically appear in the Blink BG panel. You can change this value to safely select which background image the add-on should control.
 
 ### Auto-Sync Pinned Camera
-* **[Options] > Auto-Sync Pinned Camera:** In scenes with many cameras, it's common to "Pin" the Properties Editor. When this option is enabled, switching your Active Camera in the 3D viewport will **automatically sync the pinned Properties Editor** to display the newly selected camera's data, eliminating manual unpinning/repinning.
+* **[Options] > Auto-Sync Pinned Camera:**  In scenes with multiple cameras, you might sometimes "Pin" the Camera Properties tab. When this option is enabled, switching your Active Camera in the 3D viewport automatically updates the pinned target to the new camera. This ensures you are always viewing the active camera's properties without the hassle of manually switching them.
