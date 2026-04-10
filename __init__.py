@@ -409,7 +409,7 @@ def register():
     )
     bpy.types.Scene.bg_blink_delay = bpy.props.FloatProperty(
         name="Auto-OFF Delay",
-        default=0.2, 
+        default=0.3, 
         min=0.1,
         max=5.0
     )
@@ -428,7 +428,7 @@ def register():
     kc = wm.keyconfigs.addon
     if kc:
         km = kc.keymaps.new(name='3D View', space_type='VIEW_3D', region_type='WINDOW')
-        kmi1 = km.keymap_items.new(VIEW3D_OT_blink_bg.bl_idname, 'V', 'PRESS', shift=True, alt=True)
+        kmi1 = km.keymap_items.new(VIEW3D_OT_blink_bg.bl_idname, 'V', 'PRESS', ctrl=True, alt=True)
         addon_keymaps.append((km, kmi1))
 
     bpy.msgbus.subscribe_rna(
