@@ -13,10 +13,10 @@ Manage your background opacity using two primary values and switch between them 
 * **🔄 Swap Button (Refresh Icon):** Instantly swaps the values of Opacity A and Opacity B. Perfect for quick trial and error.
 
 ### 2. Blink Action (Visibility Toggle)
-Control the background switching behavior to match your workflow. The default shortcut key is **`Alt + V`** *(This can be easily customized in Blender's Keymap preferences under the 3D View section)*.
+Control the background switching behavior to match your workflow. The default shortcut key is **`Ctrl + Alt + V`** *(This can be easily customized in Blender's Keymap preferences under the 3D View section)*.
 
 * **🔓 Unlocked State (Hold & Delay Mode):**
-  * **Shortcut (`Alt + V`):** The background switches to Opacity B **only while holding** the key, and instantly reverts to Opacity A upon release. Ideal for quick visual checks.
+  * **Shortcut (`Ctrl + Alt + V`):** The background switches to Opacity B **only while holding** the key, and instantly reverts to Opacity A upon release. Ideal for quick visual checks.
   * **UI Button Click:** Clicking the button switches to Opacity B, then automatically reverts to Opacity A after a specified delay (default is 0.3 seconds).You can change this in `Options`
 * **🔒 Locked State (Toggle Mode):**
   * By clicking the lock icon (Closed Lock), both the shortcut and the UI button switch to a **Toggle behavior** (Press once to keep Opacity B, press again to return to Opacity A). Useful when you need to closely inspect the background for a longer duration.
