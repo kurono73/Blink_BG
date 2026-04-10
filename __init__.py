@@ -2,16 +2,19 @@
 
 import bpy
 
-# --- Global Functions: Safe UI Redraw ---
+# --- Global Functions ---
+
 def force_redraw():
+    """Safely force a redraw of all 3D Viewports to reflect property changes."""
     for wm in bpy.data.window_managers:
         for window in wm.windows:
             for area in window.screen.areas:
                 if area.type == 'VIEW_3D':
                     area.tag_redraw()
 
-# --- Utility: Ultimate Camera Data Retrieval ---
+
 def get_real_cam_data(context):
+    """Robustly retrieve camera data from the current context."""
     try:
         space = getattr(context, "space_data", None)
         if space and getattr(space, "use_pin_id", False) and getattr(space, "pin_id", None):
@@ -34,8 +37,9 @@ def get_real_cam_data(context):
         pass
     return None
 
-# --- Utility: Safe Background Image Retrieval ---
+
 def get_active_bg(cam_data):
+    """Retrieve the active background image based on the selected index."""
     if not cam_data:
         return None
     bg_images = getattr(cam_data, "background_images", None)
@@ -45,12 +49,15 @@ def get_active_bg(cam_data):
     idx = max(0, min(idx, len(bg_images) - 1))
     return bg_images[idx]
 
+
 # --- Getters / Setters ---
+
 def get_base_alpha(self):
     if getattr(self, "bg_blink_active", False):
         return self.get("bg_blink_base_alpha", 0.5)
     bg = get_active_bg(self)
     return bg.alpha if bg else 0.5
+
 
 def set_base_alpha(self, value):
     self["bg_blink_base_alpha"] = value
@@ -59,11 +66,13 @@ def set_base_alpha(self, value):
         if bg:
             bg.alpha = value
 
+
 def update_target_alpha(self, context):
     if getattr(self, "bg_blink_active", False):
         bg = get_active_bg(self)
         if bg:
             bg.alpha = self.bg_blink_target_alpha
+
 
 def update_active_state(self, context):
     bg = get_active_bg(self)
@@ -77,8 +86,9 @@ def update_active_state(self, context):
 
 
 # --- Core Operators ---
+
 class VIEW3D_OT_blink_bg(bpy.types.Operator):
-    """Toggle BG image alpha. Supports hold action (shortcut) or auto-off delay (UI click)"""
+    """Toggle BG image opacity. Supports hold action (shortcut) or auto-off delay (UI click)"""
     bl_idname = "view3d.blink_bg"
     bl_label = "Blink BG"
     bl_options = {'REGISTER'} 
@@ -92,7 +102,6 @@ class VIEW3D_OT_blink_bg(bpy.types.Operator):
         cam = context.scene.camera
         if not cam or cam.type != 'CAMERA' or not cam.data.background_images:
             return {'CANCELLED'}
-        
         self.toggle_state(context)
         return {'FINISHED'}
 
@@ -106,14 +115,12 @@ class VIEW3D_OT_blink_bg(bpy.types.Operator):
             
         if event.type == 'LEFTMOUSE':
             cam_data = cam.data
-            
             if cam_data.bg_blink_active:
                 cam_data.bg_blink_active = False
                 force_redraw()
             else:
                 cam_data.bg_blink_active = True
                 force_redraw()
-                
                 def auto_off():
                     try:
                         if cam_data and cam_data.bg_blink_active:
@@ -122,18 +129,14 @@ class VIEW3D_OT_blink_bg(bpy.types.Operator):
                     except ReferenceError:
                         pass
                     return None 
-                
                 delay = context.scene.bg_blink_delay
                 bpy.app.timers.register(auto_off, first_interval=delay)
-                
             return {'FINISHED'}
 
         cam.data.bg_blink_active = True
         force_redraw()
-
         self.trigger_type = event.type
         self.trigger_value = event.value
-        
         context.window_manager.modal_handler_add(self)
         return {'RUNNING_MODAL'}
 
@@ -141,11 +144,9 @@ class VIEW3D_OT_blink_bg(bpy.types.Operator):
         if event.type == self.trigger_type and event.value != self.trigger_value:
             self.restore_state(context)
             return {'FINISHED'}
-        
         if event.type in {'ESC', 'RIGHTMOUSE'}:
             self.restore_state(context)
             return {'CANCELLED'}
-
         return {'RUNNING_MODAL'}
         
     def restore_state(self, context):
@@ -168,11 +169,9 @@ class VIEW3D_OT_blink_bg_swap_opacity(bpy.types.Operator):
 
     def execute(self, context):
         cam_data = context.scene.camera.data
-        
         temp = cam_data.bg_blink_base_alpha
         cam_data.bg_blink_base_alpha = cam_data.bg_blink_target_alpha
         cam_data.bg_blink_target_alpha = temp
-
         force_redraw()
         return {'FINISHED'}
 
@@ -199,14 +198,12 @@ class VIEW3D_OT_blink_bg_set_resolution(bpy.types.Operator):
         has_img = getattr(bg, "source", "") == 'IMAGE' and getattr(bg, "image", None) is not None
         has_mov = getattr(bg, "source", "") == 'MOVIE_CLIP' and getattr(bg, "clip", None) is not None
         
-        return has_img or has_mov 
+        return has_img or has_mov
 
     def execute(self, context):
         cam_data = get_real_cam_data(context)
-        
         if not cam_data and context.scene.camera:
             cam_data = context.scene.camera.data
-            
         if not cam_data:
             self.report({'WARNING'}, "Cannot find active camera.")
             return {'CANCELLED'}
@@ -238,6 +235,7 @@ class VIEW3D_OT_blink_bg_set_resolution(bpy.types.Operator):
 
 
 # --- UI Panels ---
+
 class VIEW3D_PT_blink_bg(bpy.types.Panel):
     """Blink BG Main Control Panel"""
     bl_label = "Blink BG"
@@ -263,16 +261,13 @@ class VIEW3D_PT_blink_bg(bpy.types.Panel):
             
             if bg:
                 layout.separator()
-                
                 if len(cam_data.background_images) > 1:
                     layout.prop(cam_data, "bg_blink_active_index")
                     layout.separator()
-                
                 if bg.source == 'MOVIE_CLIP':
                     layout.prop(bg.clip_user, "use_render_undistorted", text="Render Undistorted")
                 
                 split = layout.split(factor=0.85, align=True)
-                
                 col_left = split.column(align=True)
                 col_left.prop(cam_data, "bg_blink_base_alpha")
                 col_left.prop(cam_data, "bg_blink_target_alpha")
@@ -324,23 +319,23 @@ class VIEW3D_PT_blink_bg_options(bpy.types.Panel):
         col = layout.column()
         col.enabled = not scene.bg_blink_lock
         col.prop(scene, "bg_blink_delay", text="Auto-OFF Delay (Sec)")
-
         layout.prop(scene, "bg_blink_auto_pin", text="Auto-Sync Pinned Camera")
 
 
 def add_set_resolution_button_to_properties(self, context):
+    """Append Match Render Size button to the standard Camera properties panel."""
     self.layout.separator()
     self.layout.operator(VIEW3D_OT_blink_bg_set_resolution.bl_idname, text="Match Render Size", icon='OUTPUT')
 
 
-# --- Handlers ---
+# --- MsgBus Handler ---
+
 _msgbus_owner = object()
-_last_active_camera_name = ""
 
 def sync_pinned_camera_callback(*args):
+    """Lightweight callback triggered to update pinned Properties Editor."""
     try:
-        context = bpy.context
-        scene = getattr(context, "scene", None)
+        scene = bpy.context.scene
         if not scene or not getattr(scene, "bg_blink_auto_pin", False):
             return
 
@@ -348,11 +343,9 @@ def sync_pinned_camera_callback(*args):
         if not cam:
             return
 
-        global _last_active_camera_name
-        if cam.name == _last_active_camera_name:
+        if cam == getattr(sync_pinned_camera_callback, "_last_cam", None):
             return
-
-        _last_active_camera_name = cam.name
+        sync_pinned_camera_callback._last_cam = cam
 
         for wm in bpy.data.window_managers:
             for window in wm.windows:
@@ -371,6 +364,7 @@ def sync_pinned_camera_callback(*args):
 
 
 # --- Registration ---
+
 classes = (
     VIEW3D_OT_blink_bg,
     VIEW3D_OT_blink_bg_swap_opacity,
@@ -389,46 +383,36 @@ def register():
         min=0,
         update=update_active_state
     )
-    
     bpy.types.Camera.bg_blink_base_alpha = bpy.props.FloatProperty(
         name="Opacity A (Base)",
-        description="Base opacity for background image",
         get=get_base_alpha,
         set=set_base_alpha,
         min=0.0,
         max=1.0,
         subtype='FACTOR'
     )
-    
     bpy.types.Camera.bg_blink_target_alpha = bpy.props.FloatProperty(
         name="Opacity B (Target)",
-        description="Target opacity when Blink BG is active",
         default=0.0,
         min=0.0,
         max=1.0,
         subtype='FACTOR',
         update=update_target_alpha
     )
-    
     bpy.types.Camera.bg_blink_active = bpy.props.BoolProperty(
         default=False,
         update=update_active_state
     )
-    
     bpy.types.Scene.bg_blink_lock = bpy.props.BoolProperty(
         name="Lock Blink State",
-        description="When locked, the shortcut key acts as a toggle instead of hold",
         default=False
     )
-    
     bpy.types.Scene.bg_blink_delay = bpy.props.FloatProperty(
         name="Auto-OFF Delay",
-        description="Delay in seconds before automatically turning off when clicked via UI",
-        default=0.3, 
+        default=0.2, 
         min=0.1,
         max=5.0
     )
-    
     bpy.types.Scene.bg_blink_auto_pin = bpy.props.BoolProperty(
         name="Auto-Sync Pinned Camera",
         description="Automatically update pinned Properties editors to the active camera",
@@ -437,14 +421,14 @@ def register():
 
     for cls in classes:
         bpy.utils.register_class(cls)
-    
+        
     bpy.types.DATA_PT_camera_background_image.append(add_set_resolution_button_to_properties)
     
     wm = bpy.context.window_manager
     kc = wm.keyconfigs.addon
     if kc:
         km = kc.keymaps.new(name='3D View', space_type='VIEW_3D', region_type='WINDOW')
-        kmi1 = km.keymap_items.new(VIEW3D_OT_blink_bg.bl_idname, 'V', 'PRESS', ctrl=True, alt=True)
+        kmi1 = km.keymap_items.new(VIEW3D_OT_blink_bg.bl_idname, 'V', 'PRESS', shift=True, alt=True)
         addon_keymaps.append((km, kmi1))
 
     bpy.msgbus.subscribe_rna(
@@ -453,14 +437,14 @@ def register():
         args=(),
         notify=sync_pinned_camera_callback,
     )
-    
+
     bpy.msgbus.subscribe_rna(
         key=(bpy.types.LayerObjects, "active"),
         owner=_msgbus_owner,
         args=(),
         notify=sync_pinned_camera_callback,
     )
-
+    
 
 def unregister():
     bpy.msgbus.clear_by_owner(_msgbus_owner)
